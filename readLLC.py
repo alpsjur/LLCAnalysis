@@ -1,4 +1,5 @@
 from xmitgcm import llcreader
+import xarray as xr
 import glob
 from dask.distributed import Client, LocalCluster, progress
 import os
@@ -17,7 +18,7 @@ def return_llcreader(resolution):
     else:
         return 'resolution not available'
 
-def LLC2disk(var,niters,kiters,resolution,path,face=6):
+def LLC2disk(var,niters,kiters,resolution,path,face=6,read_grid=True):
     '''
     Download LLC data from ecco data portal 
     
@@ -28,17 +29,18 @@ def LLC2disk(var,niters,kiters,resolution,path,face=6):
     resolution (str) :: name of the resolution
     path (str) :: top directory to save, note that the final directory will be
                   path + '/' + resolution + '/'
+    face (int) :: tile number
     '''
     model = return_llcreader(resolution)
     for n,niter in enumerate(niters):
         for k,kiter in enumerate(kiters):
-            ds = model.get_dataset(varnames=[var],iters=[niter],k_levels=[kiter],read_grid=True)
+            ds = model.get_dataset(varnames=[var],iters=[niter],k_levels=[kiter],read_grid=read_grid)
             try:
                 ds[var].isel(face=face).to_netcdf(path+resolution+'/'+resolution+'_'+var+'_'+str(niter).zfill(8)+'_k'+str(kiter).zfill(3)+'_Arctic.nc')
             except aiohttp.ServerDisconnectedError: #if server is disconnected, it seems to help to just connect again
                 ds.close()
                 model = return_llcreader(resolution)
-                ds = model.get_dataset(varnames=[var],iters=[niter],k_levels=[kiter],read_grid=True)
+                ds = model.get_dataset(varnames=[var],iters=[niter],k_levels=[kiter],read_grid=read_grid)
                 ds[var].isel(face=face).to_netcdf(path+resolution+'/'+resolution+'_'+var+'_'+str(niter).zfill(8)+'_k'+str(kiter).zfill(3)+'_Arctic.nc')
             #
             ds.close()
@@ -62,6 +64,7 @@ if __name__ == '__main__':
 
 dt    = {}
 t0    = {}
+nt    = {}
 # create readers
 #model = {}
 #model['LLC4320'] = llcreader.ECCOPortalLLC4320Model()
@@ -75,14 +78,23 @@ t0['LLC2160'] = 92160
 # also the output iteration step depends on resolution
 dt['LLC4320'] = 144
 dt['LLC2160'] = 80
+#
+nt['LLC2160'] = 778
 # if needed, this is a way to check the whole thing
 #ds    = model['LLC4320'].get_dataset(k_chunksize=90)
 path  = '/projects/NS9869K/'
 #
 # Download one timestep
 resolution = 'LLC2160'
-out1 = LLC2disk('Theta',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
-out2 = LLC2disk('Salt',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
+for d in range(nt['LLC2160']): #there are 778 full days in
+    niters = range(t0[resolution]+d*24*dt[resolution],t0[resolution]+(d+1)*24*dt[resolution],dt[resolution])
+    out    = LLC2disk('Eta',niters,range(0,1),resolution,path,read_grid=False)
+    daily  = xr.open_mfdataset(sorted(glob.glob(path+resolution+'/'+resolution+'_Eta_*_Arctic.nc')))
+    daily.Eta.mean('time').to_dataset(name='Eta').to_netcdf(path+resolution+'/'+resolution+'_Eta_Arctic_day_'+str(d).zfill(4)+'_mean.nc')
+    daily.Eta.std('time').to_dataset(name='Eta').to_netcdf(path+resolution+'/'+resolution+'_Eta_Arctic_day_'+str(d).zfill(4)+'_std.nc')
+    os.system('rm '+path+resolution+'/'+resolution+'_Eta_*_Arctic.nc')
+#out1 = LLC2disk('Theta',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
+#out2 = LLC2disk('Salt',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
 #%time out = LLC2disk('U',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
 #%time out = LLC2disk('V',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
 
