@@ -86,13 +86,21 @@ path  = '/projects/NS9869K/'
 #
 # Download one timestep
 resolution = 'LLC2160'
-for d in range(nt['LLC2160']): #there are 778 full days in
+#var='Eta'
+#var='SIheff'
+#var='SIarea'
+var='SIhsalt'
+for d in range(0,nt['LLC2160']): #there are 778 full days in
+    print('day '+str(d))
+    # load 24 hours
     niters = range(t0[resolution]+d*24*dt[resolution],t0[resolution]+(d+1)*24*dt[resolution],dt[resolution])
-    out    = LLC2disk('Eta',niters,range(0,1),resolution,path,read_grid=False)
-    daily  = xr.open_mfdataset(sorted(glob.glob(path+resolution+'/'+resolution+'_Eta_*_Arctic.nc')))
-    daily.Eta.mean('time').to_dataset(name='Eta').to_netcdf(path+resolution+'/'+resolution+'_Eta_Arctic_day_'+str(d).zfill(4)+'_mean.nc')
-    daily.Eta.std('time').to_dataset(name='Eta').to_netcdf(path+resolution+'/'+resolution+'_Eta_Arctic_day_'+str(d).zfill(4)+'_std.nc')
-    os.system('rm '+path+resolution+'/'+resolution+'_Eta_*_Arctic.nc')
+    out    = LLC2disk(var,niters,range(0,1),resolution,path,read_grid=False)
+    # calculate daily mean and std
+    daily  = xr.open_mfdataset(sorted(glob.glob(path+resolution+'/'+resolution+'_'+var+'_*_Arctic.nc')))
+    daily[var].mean('time').to_dataset(name=var).to_netcdf(path+resolution+'/'+resolution+'_'+var+'_Arctic_day_'+str(d).zfill(4)+'_mean.nc')
+    daily[var].std('time').to_dataset(name=var).to_netcdf(path+resolution+'/'+resolution+'_'+var+'_Arctic_day_'+str(d).zfill(4)+'_std.nc')
+    #remove the hourly fields
+    os.system('rm '+path+resolution+'/'+resolution+'_'+var+'_*_Arctic.nc')
 #out1 = LLC2disk('Theta',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
 #out2 = LLC2disk('Salt',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
 #%time out = LLC2disk('U',range(t0[resolution],t0[resolution]+dt[resolution],dt[resolution]),range(0,85),resolution,path)
